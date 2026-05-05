@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>⚔️ WAR GIFTS VS</title>
+<script src="/socket.io/socket.io.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Black+Han+Sans&family=Rajdhani:wght@500;700&display=swap');
+
+:root {
+  --bg:#07090f; --left:#e63946; --right:#0077b6;
+  --gold:#ffd60a; --panel:#0d1117; --border:#1e2d3d;
+  --text:#edf2f4; --muted:#5c6b7a;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--text);font-family:'Rajdhani',sans-serif;min-height:100vh;overflow-x:hidden;}
+
+/* ── HEADER ── */
+.hdr{
+  background:linear-gradient(90deg,#1a0005,#07090f 40%,#07090f 60%,#001a26);
+  border-bottom:2px solid var(--border);
+  padding:10px 16px;display:flex;align-items:center;justify-content:space-between;
+  position:sticky;top:0;z-index:200;
+}
+.logo{
+  font-family:'Orbitron',sans-serif;font-size:1.3rem;font-weight:900;letter-spacing:3px;
+  background:linear-gradient(90deg,var(--left),var(--gold),var(--right));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  background-size:200%;animation:gs 3s infinite linear;
+}
+@keyframes gs{0%{background-position:0%}100%{background-position:200%}}
+
+/* status dot */
+.dot{width:10px;height:10px;border-radius:50%;background:#374151;display:inline-block;margin-right:6px;transition:.3s;}
+.dot.ok{background:#22c55e;box-shadow:0 0 8px #22c55e;}
+.dot.err{background:#ef4444;box-shadow:0 0 8px #ef4444;}
+.dot.loading{background:var(--gold);animation:blink .6s infinite;}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.status-txt{font-size:.72rem;font-family:'Orbitron',sans-serif;color:var(--muted);letter-spacing:1px;}
+
+/* ── TABS ── */
+.tabs{display:flex;background:var(--panel);border-bottom:1px solid var(--border);padding:0 16px;}
+.tab{padding:11px 18px;font-family:'Orbitron',sans-serif;font-size:.62rem;font-weight:700;
+  cursor:pointer;border-bottom:3px solid transparent;color:var(--muted);letter-spacing:1px;transition:.2s;}
+.tab.on{color:var(--gold);border-bottom-color:var(--gold);}
+.tab:hover:not(.on){color:var(--text);}
+
+/* ── PANELS ── */
+.panel{display:none;padding:14px 16px;}
+.panel.on{display:block;}
+
+/* ══ CONNECT MODAL ══ */
+.connect-bar{
+  background:var(--panel);border:2px solid var(--border);border-radius:10px;
+  padding:14px 16px;margin-bottom:14px;
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+}
+.connect-bar input{
+  flex:1;min-width:160px;background:#111827;border:1px solid var(--border);
+  border-radius:6px;color:var(--text);font-family:'Rajdhani',sans-serif;
+  font-size:.95rem;font-weight:700;padding:9px 14px;outline:none;transition:.2s;
+}
+.connect-bar input:focus{border-color:var(--gold);}
+.connect-bar input::placeholder{color:var(--muted);}
+.btn{
+  font-family:'Orbitron',sans-serif;font-size:.62rem;font-weight:700;
+  padding:9px 16px;border:none;border-radius:6px;cursor:pointer;
+  letter-spacing:1px;transition:.15s;white-space:nowrap;
+}
+.btn:hover{transform:scale(1.05);}
+.btn-go{background:var(--gold);color:#000;}
+.btn-stop{background:#ef4444;color:#fff;}
+.btn-reset{background:#374151;color:#fff;}
+.btn-blue{background:#0369a1;color:#fff;}
+.btn-green{background:#16a34a;color:#fff;}
+
+/* ══ BATTLEFIELD ══ */
+#bf{
+  position:relative;width:100%;height:320px;
+  background:linear-gradient(180deg,#0a0e1a 0%,#0d1527 54%,#1a1a2e 54%,#16213e 100%);
+  border:2px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:12px;
+}
+#bf::before{
+  content:'';position:absolute;inset:0 0 46% 0;pointer-events:none;
+  background-image:
+    radial-gradient(1px 1px at 8% 20%,rgba(255,255,255,.7) 0%,transparent 100%),
+    radial-gradient(1px 1px at 25% 55%,rgba(255,255,255,.4) 0%,transparent 100%),
+    radial-gradient(1px 1px at 45% 10%,rgba(255,255,255,.6) 0%,transparent 100%),
+    radial-gradient(1px 1px at 65% 38%,rgba(255,255,255,.3) 0%,transparent 100%),
+    radial-gradient(1px 1px at 88% 15%,rgba(255,255,255,.5) 0%,transparent 100%);
+}
+
+/* bases */
+.base{position:absolute;bottom:46%;display:flex;flex-direction:column;align-items:center;z-index:10;}
+.bL{left:10px;}.bR{right:10px;}
+.castle{font-size:3rem;line-height:1;filter:drop-shadow(0 0 14px var(--c));transition:.2s;}
+.castle.shake{animation:cshake .3s;}
+@keyframes cshake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+.bflag{font-size:1.3rem;margin-top:1px;}
+.bname{font-family:'Orbitron',sans-serif;font-size:.55rem;font-weight:900;letter-spacing:2px;color:var(--c);margin-top:1px;}
+.hpw{width:76px;margin-top:3px;}
+.hpt{background:rgba(255,255,255,.1);border-radius:3px;height:7px;overflow:hidden;}
+.hpf{height:100%;border-radius:3px;transition:width .4s ease;}
+.hpn{font-size:.58rem;font-weight:700;text-align:center;margin-top:1px;color:var(--c);}
+
+/* VS */
+.vs{
+  position:absolute;top:44%;left:50%;transform:translate(-50%,-50%);
+  font-family:'Black Han Sans',sans-serif;font-size:2.2rem;
+  color:var(--gold);text-shadow:0 0 30px rgba(255,214,10,.9);
+  z-index:20;pointer-events:none;animation:vsp 2s infinite;
+}
+@keyframes vsp{0%,100%{text-shadow:0 0 20px rgba(255,214,10,.8);}50%{text-shadow:0 0 60px rgba(255,214,10,1);}}
+
+/* units */
+.unit{
+  position:absolute;font-size:1.2rem;z-index:15;pointer-events:none;
+  bottom:var(--bot,47%);
+}
+.unit.fL{left:var(--st,95px);animation:mR var(--dur,4s) linear forwards;}
+.unit.fR{right:var(--st,95px);animation:mL var(--dur,4s) linear forwards;}
+.unit.air{bottom:64%!important;}
+.unit.nuke{bottom:72%!important;font-size:1.8rem;}
+@keyframes mR{0%{left:var(--st,95px);opacity:1}90%{opacity:1}100%{left:calc(100% - 95px);opacity:0}}
+@keyframes mL{0%{right:var(--st,95px);opacity:1}90%{opacity:1}100%{right:calc(100% - 95px);opacity:0}}
+
+/* impact */
+.hit{position:absolute;font-size:2.4rem;pointer-events:none;z-index:50;animation:hitp .7s ease forwards;}
+@keyframes hitp{0%{transform:scale(.3) rotate(-15deg);opacity:1}55%{transform:scale(1.8);opacity:1}100%{transform:scale(.5);opacity:0}}
+.nwave{position:absolute;z-index:45;border-radius:50%;pointer-events:none;border:3px solid rgba(255,214,10,.9);animation:nwex .8s ease forwards;}
+@keyframes nwex{0%{width:8px;height:8px;opacity:1;transform:translate(-50%,-50%)}100%{width:180px;height:180px;opacity:0;transform:translate(-50%,-50%)}}
+
+/* winner */
+#wov{
+  position:absolute;inset:0;display:none;align-items:center;justify-content:center;
+  flex-direction:column;gap:10px;background:rgba(0,0,0,.88);z-index:100;border-radius:12px;
+}
+.wflag{font-size:4.5rem;animation:wb 1s infinite;}
+@keyframes wb{0%,100%{transform:scale(1)}50%{transform:scale(1.2)}}
+.wtxt{font-family:'Black Han Sans',sans-serif;font-size:1.8rem;text-align:center;line-height:1.3;}
+.wsub{font-size:.9rem;color:var(--gold);font-weight:700;}
+
+/* scorecards */
+.scrow{display:flex;gap:10px;margin-bottom:12px;}
+.sc{
+  flex:1;background:var(--panel);border:2px solid;border-radius:10px;padding:11px 14px;
+  display:flex;flex-direction:column;gap:6px;
+}
+.scL{border-color:#e6394633;}.scR{border-color:#0077b633;}
+.sch{display:flex;align-items:center;gap:8px;}
+.scflag{font-size:1.8rem;}.scname{font-family:'Orbitron',sans-serif;font-size:.72rem;font-weight:900;}
+.sccoins{font-size:.72rem;color:var(--gold);font-weight:700;margin-top:1px;}
+.pills{display:flex;gap:5px;flex-wrap:wrap;}
+.pill{background:rgba(255,255,255,.07);border-radius:20px;padding:3px 9px;font-size:.76rem;font-weight:700;}
+
+/* log */
+.logbox{
+  background:var(--panel);border:1px solid var(--border);border-radius:8px;
+  height:110px;overflow-y:auto;padding:7px 11px;
+  display:flex;flex-direction:column-reverse;gap:2px;
+}
+.logbox::-webkit-scrollbar{width:3px;}
+.logbox::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+.le{font-size:.76rem;padding:3px 7px;border-radius:4px;border-left:3px solid transparent;animation:lein .25s ease;}
+@keyframes lein{from{opacity:0;transform:translateX(-6px)}to{opacity:1;transform:translateX(0)}}
+
+/* sim buttons */
+.simwrap{margin-top:12px;}
+.simtitle{font-family:'Orbitron',sans-serif;font-size:.58rem;color:var(--muted);letter-spacing:2px;margin-bottom:6px;}
+.simrow{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:5px;}
+.sb{
+  font-size:.7rem;padding:5px 10px;border-radius:5px;cursor:pointer;
+  border:1px solid;background:rgba(255,255,255,.04);
+  font-family:'Rajdhani',sans-serif;font-weight:700;transition:.15s;
+}
+.sb:hover{background:rgba(255,255,255,.12);transform:scale(1.04);}
+
+/* ══ CONFIG PANEL ══ */
+.cfgtop{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px;}
+.cbox{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:16px;}
+.cbox h3{font-family:'Orbitron',sans-serif;font-size:.62rem;color:var(--gold);letter-spacing:2px;
+  margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid var(--border);}
+.fg{margin-bottom:9px;}
+.fg label{display:block;font-size:.7rem;font-weight:600;color:var(--muted);margin-bottom:2px;}
+.fg input,.fg select{
+  width:100%;background:#111827;border:1px solid var(--border);border-radius:5px;
+  color:var(--text);font-family:'Rajdhani',sans-serif;font-size:.88rem;font-weight:600;
+  padding:7px 10px;outline:none;transition:.2s;
+}
+.fg input:focus{border-color:var(--gold);}
+
+.ucosts{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px;}
+.ucard{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:12px;text-align:center;}
+.uicon{font-size:1.8rem;margin-bottom:4px;}
+.uname{font-family:'Orbitron',sans-serif;font-size:.55rem;color:var(--gold);letter-spacing:1px;margin-bottom:8px;}
+.ufg{text-align:left;margin-bottom:6px;}
+.ufg label{display:block;font-size:.65rem;color:var(--muted);margin-bottom:2px;}
+.ufg input{
+  width:100%;background:#111827;border:1px solid var(--border);border-radius:4px;
+  color:var(--text);font-family:'Rajdhani',sans-serif;font-size:.82rem;font-weight:700;
+  padding:5px 7px;outline:none;
+}
+.ufg input:focus{border-color:var(--gold);}
+
+.gtable{width:100%;border-collapse:collapse;font-size:.8rem;}
+.gtable th{font-family:'Orbitron',sans-serif;font-size:.56rem;color:var(--muted);letter-spacing:1px;
+  padding:6px 7px;text-align:left;border-bottom:1px solid var(--border);}
+.gtable td{padding:5px 6px;}
+.gtable tr:not(:last-child) td{border-bottom:1px solid rgba(30,45,61,.4);}
+.gtable input{
+  background:#111827;border:1px solid var(--border);border-radius:4px;
+  color:var(--text);font-family:'Rajdhani',sans-serif;font-size:.8rem;font-weight:700;
+  padding:4px 7px;outline:none;width:100%;
+}
+.gtable input:focus{border-color:var(--gold);}
+
+.shdr{
+  font-family:'Orbitron',sans-serif;font-size:.65rem;color:var(--gold);
+  letter-spacing:2px;margin:14px 0 8px;display:flex;align-items:center;gap:8px;
+}
+.shdr::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,var(--gold),transparent);}
+
+/* toasts */
+#toasts{position:fixed;bottom:14px;right:14px;display:flex;flex-direction:column-reverse;gap:5px;z-index:999;pointer-events:none;}
+.toast{
+  background:#1e293b;border:1px solid var(--border);border-left:4px solid var(--gold);
+  border-radius:7px;padding:9px 13px;font-size:.8rem;font-weight:700;
+  animation:tin .3s ease,tout .3s ease 2.7s forwards;max-width:260px;
+}
+@keyframes tin{from{opacity:0;transform:translateX(16px)}to{opacity:1;transform:translateX(0)}}
+@keyframes tout{to{opacity:0;transform:translateX(16px)}}
+
+@media(max-width:600px){
+  .cfgtop{grid-template-columns:1fr;}
+  .ucosts{grid-template-columns:1fr 1fr;}
+  .scrow{flex-direction:column;}
+}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="hdr">
+  <div class="logo">⚔️ WAR GIFTS</div>
+  <div style="display:flex;align-items:center;gap:6px;">
+    <span class="dot" id="dot"></span>
+    <span class="status-txt" id="statusTxt">DESCONECTADO</span>
+  </div>
+</div>
+
+<div class="tabs">
+  <div class="tab on" onclick="showTab('game')">⚔️ BATALLA</div>
+  <div class="tab"    onclick="showTab('cfg')">⚙️ CONFIGURAR</div>
+</div>
+
+<!-- ══════ GAME ══════ -->
+<div class="panel on" id="tab-game">
+
+  <!-- CONNECT BAR -->
+  <div class="connect-bar">
+    <input id="tikuser" placeholder="@tu_usuario_tiktok" spellcheck="false" autocomplete="off">
+    <button class="btn btn-go"   id="btnConnect"    onclick="connectTikTok()">🔗 CONECTAR</button>
+    <button class="btn btn-stop" id="btnDisconnect" onclick="disconnectTikTok()" style="display:none">⛔ DESCONECTAR</button>
+    <button class="btn btn-reset"                   onclick="resetGame()">↺ RESET</button>
+  </div>
+
+  <!-- BATTLEFIELD -->
+  <div id="bf">
+    <!-- LEFT BASE -->
+    <div class="base bL" id="bL">
+      <div class="castle" id="castleL" style="--c:var(--left)">🏰</div>
+      <div class="bflag"  id="flagL">🇲🇽</div>
+      <div class="bname"  id="nameL"  style="--c:var(--left)">MÉXICO</div>
+      <div class="hpw">
+        <div class="hpt"><div class="hpf" id="hpfL" style="width:100%;background:linear-gradient(90deg,#b91c1c,var(--left))"></div></div>
+        <div class="hpn" id="hpnL" style="--c:var(--left)">1000/1000</div>
+      </div>
+    </div>
+
+    <!-- RIGHT BASE -->
+    <div class="base bR" id="bR">
+      <div class="castle" id="castleR" style="--c:var(--right)">🏯</div>
+      <div class="bflag"  id="flagR">🇧🇷</div>
+      <div class="bname"  id="nameR"  style="--c:var(--right)">BRASIL</div>
+      <div class="hpw">
+        <div class="hpt"><div class="hpf" id="hpfR" style="width:100%;background:linear-gradient(90deg,#1d4ed8,var(--right))"></div></div>
+        <div class="hpn" id="hpnR" style="--c:var(--right)">1000/1000</div>
+      </div>
+    </div>
+
+    <div class="vs">VS</div>
+
+    <!-- WINNER OVERLAY -->
+    <div id="wov" style="display:none">
+      <div class="wflag" id="wflag">🏆</div>
+      <div class="wtxt"  id="wtxt">¡GANADOR!</div>
+      <div class="wsub"  id="wsub"></div>
+      <button class="btn btn-go" style="margin-top:8px" onclick="resetGame()">↺ NUEVA PARTIDA</button>
+    </div>
+  </div>
+
+  <!-- SCORECARDS -->
+  <div class="scrow">
+    <div class="sc scL">
+      <div class="sch">
+        <div class="scflag" id="scfL">🇲🇽</div>
+        <div>
+          <div class="scname" id="scnL" style="color:var(--left)">MÉXICO</div>
+          <div class="sccoins" id="sccL">0 🪙 acumuladas</div>
+        </div>
+      </div>
+      <div class="pills" id="pillsL">
+        <div class="pill">🪖 0</div><div class="pill">🚗 0</div>
+        <div class="pill">✈️ 0</div><div class="pill">☢️ 0</div>
+      </div>
+    </div>
+    <div class="sc scR">
+      <div class="sch">
+        <div class="scflag" id="scfR">🇧🇷</div>
+        <div>
+          <div class="scname" id="scnR" style="color:var(--right)">BRASIL</div>
+          <div class="sccoins" id="sccR">0 🪙 acumuladas</div>
+        </div>
+      </div>
+      <div class="pills" id="pillsR">
+        <div class="pill">🪖 0</div><div class="pill">🚗 0</div>
+        <div class="pill">✈️ 0</div><div class="pill">☢️ 0</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LOG -->
+  <div class="shdr">📜 REGALOS EN VIVO</div>
+  <div class="logbox" id="logbox">
+    <div class="le" style="color:var(--muted)">Conecta tu TikTok LIVE para empezar...</div>
+  </div>
+
+  <!-- SIM BUTTONS -->
+  <div class="simwrap">
+    <div class="shdr">🎮 SIMULAR REGALOS (DEMO)</div>
+    <div class="simtitle" style="color:var(--left)">⬅ IZQUIERDA</div>
+    <div class="simrow" id="simL"></div>
+    <div class="simtitle" style="color:var(--right)">DERECHA ➡</div>
+    <div class="simrow" id="simR"></div>
+  </div>
+</div>
+
+<!-- ══════ CONFIG ══════ -->
+<div class="panel" id="tab-cfg">
+
+  <div class="cfgtop">
+    <div class="cbox">
+      <h3>🔴 PAÍS IZQUIERDA</h3>
+      <div class="fg"><label>Bandera (emoji)</label><input id="cLf" value="🇲🇽"></div>
+      <div class="fg"><label>Nombre</label><input id="cLn" value="MÉXICO"></div>
+      <div class="fg"><label>HP de base</label><input type="number" id="cLh" value="1000" min="100" max="9999"></div>
+      <div class="fg"><label>¿Qué regalos van a IZQUIERDA?</label>
+        <select id="cLside">
+          <option value="keyword">Por palabra clave en nombre</option>
+          <option value="odd">Regalos impares (1°,3°,5°...)</option>
+          <option value="even">Regalos pares (2°,4°,6°...)</option>
+          <option value="random">Aleatorio 50/50</option>
+        </select>
+      </div>
+      <div class="fg" id="kwL-wrap"><label>Palabra clave (ej: mexico)</label><input id="kwL" value="mexico" placeholder="ej: left, rojo, mexico"></div>
+    </div>
+    <div class="cbox">
+      <h3>🔵 PAÍS DERECHA</h3>
+      <div class="fg"><label>Bandera (emoji)</label><input id="cRf" value="🇧🇷"></div>
+      <div class="fg"><label>Nombre</label><input id="cRn" value="BRASIL"></div>
+      <div class="fg"><label>HP de base</label><input type="number" id="cRh" value="1000" min="100" max="9999"></div>
+      <div class="fg"><label>¿Qué regalos van a DERECHA?</label>
+        <select id="cRside">
+          <option value="keyword">Por palabra clave en nombre</option>
+          <option value="odd">Regalos impares</option>
+          <option value="even" selected>Regalos pares</option>
+          <option value="random">Aleatorio</option>
+        </select>
+      </div>
+      <div class="fg" id="kwR-wrap"><label>Palabra clave (ej: brasil)</label><input id="kwR" value="brasil" placeholder="ej: right, azul, brasil"></div>
+    </div>
+  </div>
+
+  <div class="shdr">⚙️ COSTO Y DAÑO DE UNIDADES</div>
+  <div class="ucosts">
+    <div class="ucard">
+      <div class="uicon">🪖</div><div class="uname">SOLDADO</div>
+      <div class="ufg"><label>Costo 🪙</label><input type="number" id="uSc" value="5" min="1"></div>
+      <div class="ufg"><label>Daño 💥</label><input type="number" id="uSd" value="8" min="1"></div>
+      <div class="ufg"><label>Velocidad (seg)</label><input type="number" id="uSs" value="4" min="1" max="15" step="0.5"></div>
+    </div>
+    <div class="ucard">
+      <div class="uicon">🚗</div><div class="uname">TANQUE</div>
+      <div class="ufg"><label>Costo 🪙</label><input type="number" id="uTc" value="25" min="1"></div>
+      <div class="ufg"><label>Daño 💥</label><input type="number" id="uTd" value="40" min="1"></div>
+      <div class="ufg"><label>Velocidad (seg)</label><input type="number" id="uTs" value="6" min="1" max="15" step="0.5"></div>
+    </div>
+    <div class="ucard">
+      <div class="uicon">✈️</div><div class="uname">AVIÓN</div>
+      <div class="ufg"><label>Costo 🪙</label><input type="number" id="uPc" value="80" min="1"></div>
+      <div class="ufg"><label>Daño 💥</label><input type="number" id="uPd" value="120" min="1"></div>
+      <div class="ufg"><label>Velocidad (seg)</label><input type="number" id="uPs" value="3" min="1" max="15" step="0.5"></div>
+    </div>
+    <div class="ucard">
+      <div class="uicon">☢️</div><div class="uname">NUCLEAR</div>
+      <div class="ufg"><label>Costo 🪙</label><input type="number" id="uNc" value="500" min="1"></div>
+      <div class="ufg"><label>Daño 💥</label><input type="number" id="uNd" value="600" min="1"></div>
+      <div class="ufg"><label>Velocidad (seg)</label><input type="number" id="uNs" value="5" min="1" max="15" step="0.5"></div>
+    </div>
+  </div>
+
+  <div class="shdr">🎁 REGALOS TIKTOK → MONEDAS</div>
+  <div class="cbox" style="overflow-x:auto">
+    <h3>CADA REGALO DA MONEDAS · LAS MONEDAS COMPRAN UNIDADES</h3>
+    <table class="gtable">
+      <thead>
+        <tr>
+          <th>EMOJI</th><th>NOMBRE REGALO</th><th>💰 MONEDAS</th><th>DESCRIPCIÓN</th><th></th>
+        </tr>
+      </thead>
+      <tbody id="gtbody"></tbody>
+    </table>
+    <button class="btn btn-blue" style="margin-top:10px" onclick="addGift()">+ AÑADIR REGALO</button>
+  </div>
+
+  <br>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <button class="btn btn-go"   onclick="saveConfig()">💾 GUARDAR</button>
+    <button class="btn btn-reset"onclick="loadDefaults()">↺ Defaults</button>
+  </div>
+</div>
+
+<div id="toasts"></div>
+
+<script>
+// ════════════════════════════════
+// SOCKET.IO
+// ════════════════════════════════
+const socket = io();
+let giftCount = 0;
+
+socket.on('tiktok-status', (data) => {
+  if(data.ok){
+    setDot('ok', '🟢 @'+data.user+' EN VIVO');
+    document.getElementById('btnConnect').style.display='none';
+    document.getElementById('btnDisconnect').style.display='';
+    toast('✅ Conectado a @'+data.user,'#22c55e');
+    addLog('🟢 Conectado a TikTok LIVE. ¡Esperando regalos!','#22c55e');
+  } else {
+    setDot('err','❌ ERROR');
+    document.getElementById('btnConnect').style.display='';
+    document.getElementById('btnDisconnect').style.display='none';
+    toast('❌ '+data.error,'#ef4444');
+    addLog('❌ '+data.error,'#ef4444');
+  }
+});
+
+// 🎁 REGALO REAL DE TIKTOK
+socket.on('gift', (data) => {
+  giftCount++;
+  const side = assignSide(data, giftCount);
+  const gIdx = cfg.gifts.findIndex(g =>
+    g.name.toLowerCase() === data.gift.toLowerCase()
+  );
+  const coins = gIdx >= 0 ? cfg.gifts[gIdx].coins : Math.max(1, data.coins);
+
+  receiveGift(side, coins, data.nickname, data.gift);
+  addLog(`${data.nickname} → ${data.gift} x${data.count} (${coins}🪙)`,
+    side==='L'?'#e63946':'#0077b6');
+});
+
+function assignSide(data, count){
+  const mode = cfg.countries[0].sideMode || 'random';
+  if(mode === 'keyword'){
+    const kw = (cfg.countries[0].keyword||'').toLowerCase();
+    const msg = (data.nickname+data.gift).toLowerCase();
+    return msg.includes(kw) ? 'L' : 'R';
+  }
+  if(mode === 'odd')  return count%2===1 ? 'L' : 'R';
+  if(mode === 'even') return count%2===0 ? 'L' : 'R';
+  return Math.random()<.5 ? 'L' : 'R';
+}
+
+function connectTikTok(){
+  let user = document.getElementById('tikuser').value.trim();
+  if(!user){ toast('⚠️ Escribe tu usuario TikTok','#f59e0b'); return; }
+  setDot('loading','⏳ CONECTANDO...');
+  socket.emit('connect-tiktok', user);
+}
+function disconnectTikTok(){
+  socket.emit('disconnect-tiktok');
+  setDot('','DESCONECTADO');
+  document.getElementById('btnConnect').style.display='';
+  document.getElementById('btnDisconnect').style.display='none';
+  toast('Desconectado','#f59e0b');
+}
+function setDot(cls, txt){
+  const d=document.getElementById('dot');
+  d.className='dot '+(cls||'');
+  document.getElementById('statusTxt').textContent=txt;
+}
+
+// ════════════════════════════════
+// DEFAULT CONFIG
+// ════════════════════════════════
+const DEF = {
+  countries:[
+    {flag:'🇲🇽',name:'MÉXICO',hp:1000,sideMode:'random',keyword:'mexico'},
+    {flag:'🇧🇷',name:'BRASIL',hp:1000,sideMode:'random',keyword:'brasil'},
+  ],
+  units:{
+    soldier:{cost:5,  dmg:8,  spd:4,  emoji:'🪖',label:'Soldado'},
+    tank:   {cost:25, dmg:40, spd:6,  emoji:'🚗',label:'Tanque'},
+    plane:  {cost:80, dmg:120,spd:3,  emoji:'✈️',label:'Avión',air:true},
+    nuclear:{cost:500,dmg:600,spd:5,  emoji:'☢️',label:'Nuclear',nuke:true},
+  },
+  gifts:[
+    {emoji:'🌹',name:'Rosa',     coins:5},
+    {emoji:'🎉',name:'Confeti',  coins:20},
+    {emoji:'💎',name:'Diamante', coins:100},
+    {emoji:'🚀',name:'Cohete',   coins:250},
+    {emoji:'🦁',name:'León',     coins:1000},
+    {emoji:'🐉',name:'Dragón',   coins:5000},
+    {emoji:'🌌',name:'Universo', coins:34999},
+  ]
+};
+
+let cfg = JSON.parse(JSON.stringify(DEF));
+
+// ════════════════════════════════
+// GAME STATE
+// ════════════════════════════════
+let G = null;
+let atkLoop = null;
+let uid = 0;
+
+function makeG(){
+  return {
+    L:{hp:cfg.countries[0].hp, maxHP:cfg.countries[0].hp, coins:0, soldiers:0,tanks:0,planes:0,nukes:0,gifts:0},
+    R:{hp:cfg.countries[1].hp, maxHP:cfg.countries[1].hp, coins:0, soldiers:0,tanks:0,planes:0,nukes:0,gifts:0},
+  };
+}
+
+function resetGame(){
+  clearInterval(atkLoop);
+  G = makeG();
+  document.querySelectorAll('.unit').forEach(u=>u.remove());
+  document.getElementById('wov').style.display='none';
+  updateUI();
+  buildSimBtns();
+  atkLoop = setInterval(autoSend,2200);
+  toast('↺ Juego reiniciado','#3b82f6');
+}
+
+// ════════════════════════════════
+// RECEIVE GIFT
+// ════════════════════════════════
+function receiveGift(side, coins, nick='SIM', giftName='Regalo'){
+  if(!G) G = makeG();
+  const s = G[side];
+  s.gifts++;
+  s.coins += coins;
+  spendCoins(side);
+  updateUI();
+}
+
+function spendCoins(side){
+  const s = G[side]; const u = cfg.units;
+  while(s.coins>=u.nuclear.cost){ s.coins-=u.nuclear.cost; s.nukes++;  spawnUnit(side,'nuclear'); }
+  while(s.coins>=u.plane.cost)  { s.coins-=u.plane.cost;   s.planes++; spawnUnit(side,'plane'); }
+  while(s.coins>=u.tank.cost)   { s.coins-=u.tank.cost;    s.tanks++;  spawnUnit(side,'tank'); }
+  while(s.coins>=u.soldier.cost){ s.coins-=u.soldier.cost; s.soldiers++;spawnUnit(side,'soldier'); }
+}
+
+// ════════════════════════════════
+// SPAWN UNIT ANIMATION
+// ════════════════════════════════
+function spawnUnit(side, type){
+  const u = cfg.units[type];
+  const bf = document.getElementById('bf');
+  const el = document.createElement('div');
+  el.className=`unit f${side}${u.air?' air':''}${u.nuke?' nuke':''}`;
+  el.style.setProperty('--dur',(u.spd+(Math.random()*.8-.4))+'s');
+  el.style.setProperty('--st',(88+Math.floor(Math.random()*25))+'px');
+  if(!u.air&&!u.nuke) el.style.setProperty('--bot',(46+Math.random()*3)+'%');
+  el.textContent=u.emoji;
+  bf.appendChild(el);
+  el.addEventListener('animationend',()=>{
+    el.remove();
+    const target=side==='L'?'R':'L';
+    dealDmg(target,u.dmg,type,side);
+  });
+}
+
+function autoSend(){
+  if(!G) return;
+  ['L','R'].forEach(side=>{
+    const s=G[side];
+    if(s.soldiers>0){ s.soldiers--; spawnUnit(side,'soldier'); }
+    if(s.tanks>0&&Math.random()<.4){ s.tanks--; spawnUnit(side,'tank'); }
+    if(s.planes>0&&Math.random()<.25){ s.planes--; spawnUnit(side,'plane'); }
+    if(s.nukes>0&&Math.random()<.1){ s.nukes--; spawnUnit(side,'nuclear'); }
+  });
+  updateUI();
+}
+
+// ════════════════════════════════
+// DAMAGE
+// ════════════════════════════════
+function dealDmg(target,dmg,type,attSide){
+  if(!G) return;
+  const s=G[target];
+  s.hp=Math.max(0,s.hp-dmg);
+  shakeBase(target);
+  spawnHit(target,type);
+  updateUI();
+  if(s.hp<=0) endGame(attSide);
+}
+
+function shakeBase(side){
+  const c=document.getElementById('castle'+(side==='L'?'L':'R'));
+  c.classList.remove('shake'); void c.offsetWidth; c.classList.add('shake');
+  setTimeout(()=>c.classList.remove('shake'),350);
+}
+
+function spawnHit(side,type){
+  const bf=document.getElementById('bf');
+  const isL=side==='L';
+  const h=document.createElement('div'); h.className='hit';
+  h.textContent=type==='nuclear'?'🌑':type==='plane'?'💥':type==='tank'?'🔥':'💢';
+  h.style.left=isL?(8+Math.random()*14)+'%':(78+Math.random()*14)+'%';
+  h.style.top=(30+Math.random()*22)+'%';
+  bf.appendChild(h); setTimeout(()=>h.remove(),750);
+  if(type==='nuclear'){
+    const w=document.createElement('div'); w.className='nwave';
+    w.style.left=isL?'12%':'88%'; w.style.top='55%';
+    bf.appendChild(w); setTimeout(()=>w.remove(),900);
+    const bff=document.getElementById('bf');
+    bff.style.filter='brightness(3)'; setTimeout(()=>bff.style.filter='',160);
+  }
+}
+
+function endGame(winSide){
+  clearInterval(atkLoop);
+  const ci=winSide==='L'?0:1; const c=cfg.countries[ci]; const s=G[winSide];
+  document.getElementById('wflag').textContent=c.flag;
+  document.getElementById('wtxt').innerHTML=
+    `<span style="color:${winSide==='L'?'var(--left)':'var(--right)'}">${c.name}</span><br>¡VICTORIA!`;
+  document.getElementById('wsub').textContent=`${s.gifts} regalos enviados`;
+  document.getElementById('wov').style.display='flex';
+  toast(`🏆 ${c.flag} ${c.name} GANA!`,winSide==='L'?'#e63946':'#0077b6');
+}
+
+// ════════════════════════════════
+// UPDATE UI
+// ════════════════════════════════
+function updateUI(){
+  if(!G) return;
+  [['L','L'],['R','R']].forEach(([s,sfx])=>{
+    const st=G[s]; const ci=s==='L'?0:1; const c=cfg.countries[ci];
+    const pct=Math.max(0,(st.hp/st.maxHP)*100);
+    const hc=pct>60?'#22c55e':pct>25?'#f59e0b':'#ef4444';
+    document.getElementById('hpf'+sfx).style.width=pct+'%';
+    document.getElementById('hpf'+sfx).style.background=`linear-gradient(90deg,${hc}88,${hc})`;
+    document.getElementById('hpn'+sfx).textContent=`${Math.round(st.hp)}/${st.maxHP}`;
+    document.getElementById('flag'+sfx).textContent=c.flag;
+    document.getElementById('name'+sfx).textContent=c.name;
+    document.getElementById('scf'+sfx).textContent=c.flag;
+    document.getElementById('scn'+sfx).textContent=c.name;
+    document.getElementById('scc'+sfx).textContent=`${st.coins} 🪙 acumuladas`;
+    document.getElementById('pills'+sfx).innerHTML=
+      `<div class="pill">🪖 ${st.soldiers}</div><div class="pill">🚗 ${st.tanks}</div>
+       <div class="pill">✈️ ${st.planes}</div><div class="pill">☢️ ${st.nukes}</div>`;
+  });
+}
+
+// ════════════════════════════════
+// LOG & TOAST
+// ════════════════════════════════
+function addLog(msg,color='#e2e8f0'){
+  const b=document.getElementById('logbox');
+  const d=document.createElement('div'); d.className='le';
+  d.style.borderLeftColor=color; d.style.color=color;
+  const t=new Date().toLocaleTimeString('es',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  d.innerHTML=`<span style="color:var(--muted);font-size:.66rem">${t}</span> ${msg}`;
+  b.prepend(d); if(b.children.length>80) b.lastChild.remove();
+}
+function toast(msg,color='#ffd60a'){
+  const t=document.createElement('div'); t.className='toast';
+  t.style.borderLeftColor=color; t.innerHTML=msg;
+  document.getElementById('toasts').appendChild(t);
+  setTimeout(()=>t.remove(),3200);
+}
+
+// ════════════════════════════════
+// SIM BUTTONS
+// ════════════════════════════════
+function buildSimBtns(){
+  ['L','R'].forEach((side,si)=>{
+    const row=document.getElementById('sim'+side);
+    row.innerHTML='';
+    cfg.gifts.forEach((g,gi)=>{
+      const b=document.createElement('button'); b.className='sb';
+      b.style.borderColor=side==='L'?'#e6394666':'#0077b666';
+      b.style.color=side==='L'?'#e63946':'#0077b6';
+      b.innerHTML=`${cfg.countries[si].flag}${g.emoji} ${g.name}`;
+      b.onclick=()=>{
+        receiveGift(side,g.coins,'SIM',g.name);
+        addLog(`🎮 [SIM] ${cfg.countries[si].flag} ${g.emoji} ${g.name} (+${g.coins}🪙)`,
+          side==='L'?'#e63946':'#0077b6');
+      };
+      row.appendChild(b);
+    });
+  });
+}
+
+// ════════════════════════════════
+// CONFIG
+// ════════════════════════════════
+function buildGiftsTable(){
+  document.getElementById('gtbody').innerHTML=cfg.gifts.map((g,i)=>`
+    <tr>
+      <td><input id="ge${i}" value="${g.emoji}" style="width:52px;text-align:center"></td>
+      <td><input id="gn${i}" value="${g.name}"></td>
+      <td><input id="gc${i}" type="number" value="${g.coins}" min="1"></td>
+      <td><input id="gd${i}" value="${g.desc||''}" placeholder="opcional"></td>
+      <td><button class="btn btn-stop" style="padding:3px 8px;font-size:.6rem" onclick="removeGift(${i})">✕</button></td>
+    </tr>`).join('');
+}
+function addGift(){ cfg.gifts.push({emoji:'🎁',name:'Nuevo',coins:10,desc:''}); buildGiftsTable(); }
+function removeGift(i){ cfg.gifts.splice(i,1); buildGiftsTable(); }
+
+function populateForm(){
+  const c=cfg.countries;
+  document.getElementById('cLf').value=c[0].flag;
+  document.getElementById('cLn').value=c[0].name;
+  document.getElementById('cLh').value=c[0].hp;
+  document.getElementById('cLside').value=c[0].sideMode||'random';
+  document.getElementById('kwL').value=c[0].keyword||'';
+  document.getElementById('cRf').value=c[1].flag;
+  document.getElementById('cRn').value=c[1].name;
+  document.getElementById('cRh').value=c[1].hp;
+  document.getElementById('cRside').value=c[1].sideMode||'random';
+  document.getElementById('kwR').value=c[1].keyword||'';
+  const u=cfg.units;
+  document.getElementById('uSc').value=u.soldier.cost; document.getElementById('uSd').value=u.soldier.dmg; document.getElementById('uSs').value=u.soldier.spd;
+  document.getElementById('uTc').value=u.tank.cost;    document.getElementById('uTd').value=u.tank.dmg;    document.getElementById('uTs').value=u.tank.spd;
+  document.getElementById('uPc').value=u.plane.cost;   document.getElementById('uPd').value=u.plane.dmg;   document.getElementById('uPs').value=u.plane.spd;
+  document.getElementById('uNc').value=u.nuclear.cost; document.getElementById('uNd').value=u.nuclear.dmg; document.getElementById('uNs').value=u.nuclear.spd;
+  buildGiftsTable();
+}
+
+function saveConfig(){
+  cfg.countries[0].flag=document.getElementById('cLf').value||'🇲🇽';
+  cfg.countries[0].name=document.getElementById('cLn').value.toUpperCase()||'PAÍS 1';
+  cfg.countries[0].hp=parseInt(document.getElementById('cLh').value)||1000;
+  cfg.countries[0].sideMode=document.getElementById('cLside').value;
+  cfg.countries[0].keyword=document.getElementById('kwL').value.toLowerCase();
+  cfg.countries[1].flag=document.getElementById('cRf').value||'🇧🇷';
+  cfg.countries[1].name=document.getElementById('cRn').value.toUpperCase()||'PAÍS 2';
+  cfg.countries[1].hp=parseInt(document.getElementById('cRh').value)||1000;
+  cfg.countries[1].sideMode=document.getElementById('cRside').value;
+  cfg.countries[1].keyword=document.getElementById('kwR').value.toLowerCase();
+  const u=cfg.units;
+  u.soldier.cost=+document.getElementById('uSc').value; u.soldier.dmg=+document.getElementById('uSd').value; u.soldier.spd=+document.getElementById('uSs').value;
+  u.tank.cost   =+document.getElementById('uTc').value; u.tank.dmg   =+document.getElementById('uTd').value; u.tank.spd   =+document.getElementById('uTs').value;
+  u.plane.cost  =+document.getElementById('uPc').value; u.plane.dmg  =+document.getElementById('uPd').value; u.plane.spd  =+document.getElementById('uPs').value;
+  u.nuclear.cost=+document.getElementById('uNc').value; u.nuclear.dmg=+document.getElementById('uNd').value; u.nuclear.spd=+document.getElementById('uNs').value;
+  cfg.gifts=[];
+  document.querySelectorAll('#gtbody tr').forEach((_,i)=>{
+    cfg.gifts.push({
+      emoji:document.getElementById(`ge${i}`)?.value||'🎁',
+      name: document.getElementById(`gn${i}`)?.value||'Regalo',
+      coins:parseInt(document.getElementById(`gc${i}`)?.value)||1,
+      desc: document.getElementById(`gd${i}`)?.value||'',
+    });
+  });
+  buildSimBtns(); updateUI();
+  toast('✅ Configuración guardada','#22c55e');
+}
+
+function loadDefaults(){
+  cfg=JSON.parse(JSON.stringify(DEF));
+  populateForm(); buildSimBtns(); updateUI();
+  toast('↺ Defaults restaurados','#3b82f6');
+}
+
+// tabs
+function showTab(id){
+  document.querySelectorAll('.panel').forEach(e=>e.classList.remove('on'));
+  document.querySelectorAll('.tab').forEach(e=>e.classList.remove('on'));
+  document.getElementById('tab-'+id).classList.add('on');
+  document.querySelectorAll('.tab')[id==='game'?0:1].classList.add('on');
+}
+
+// INIT
+G = makeG();
+populateForm();
+buildSimBtns();
+updateUI();
+atkLoop = setInterval(autoSend,2200);
+</script>
+</body>
+</html>
